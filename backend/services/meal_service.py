@@ -1,10 +1,15 @@
 from models.meal_plan import MealPlan
 from models.grocery_item import GroceryItem
-from models.user import db
+from models.user import User, db
 
 class MealService:
     @staticmethod
-    def suggest_groceries(budget, meal_type):
+    def suggest_groceries(budget, meal_type, user_id):
+        # Check if the user exists
+        user = User.query.get(user_id)
+        if not user:
+            raise ValueError("User does not exist")
+
         items = GroceryItem.query.filter(
             GroceryItem.category.ilike(f'%{meal_type}%')
         ).order_by(
@@ -23,9 +28,17 @@ class MealService:
                         'price': item.price,
                         'store': item.store,
                         'protein': item.protein_per_100g,
-                        'value': round(item.protein_per_100g/item.price, 2)
                     })
                     remaining -= item.price
+
+        # Save the meal plan to the database
+        new_meal_plan = MealPlan(
+            user_id=user_id,
+            budget=budget,
+            meal_type=meal_type
+        )
+        db.session.add(new_meal_plan)
+        db.session.commit()
 
         return {
             'suggestions': suggestions,
@@ -38,3 +51,7 @@ class MealService:
                 'total_protein': round(sum(i['protein'] for i in suggestions), 2)
             }
         }
+
+    @staticmethod
+    def get_all_meal_plans():
+        return MealPlan.query.all()
